@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "parameters": [
+    -1.7916463699499339,
+    1.4844589747629209,
+    1.4516374496954536,
+    -2.7378738032509444,
+    0.0,
+    0.0
+  ],
+  "active_parameter_names": [
+    "b",
+    "A",
+    "f",
+    "phi"
+  ],
+  "grading": {
+    "status": "draft_uncalibrated",
+    "scale_method": "nonlinear_jacobian_local",
+    "sigma_multiplier": 4.0,
+    "parameter_stddev": [
+      0.013274477732049556,
+      0.018777435313298726,
+      0.00017408110287038962,
+      0.025306607123163686,
+      0.0,
+      0.0
+    ],
+    "numerical_floor": [
+      1e-08,
+      1e-08,
+      1e-08,
+      1e-08,
+      0.0,
+      0.0
+    ],
+    "absolute_tolerance": [
+      0.053097920928198226,
+      0.0751097512531949,
+      0.0006963344114815585,
+      0.10122643849265474,
+      0.0,
+      0.0
+    ],
+    "phase_error": "circular_distance_radians",
+    "scaled_design_condition_number": 3.7357626202363394
+  }
+}

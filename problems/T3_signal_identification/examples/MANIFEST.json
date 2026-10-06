@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "dataset": "examples",
+  "status": "public_examples",
+  "root_seed": 20271005,
+  "noise_policy": {
+    "max_sigma_to_signal_rms": 0.8
+  },
+  "samples": [
+    {
+      "sample_id": 1,
+      "directory": "basic/constant",
+      "module": "basic",
+      "mode": "Constant",
+      "sample_count": 501
+    },
+    {
+      "sample_id": 2,
+      "directory": "basic/linear",
+      "module": "basic",
+      "mode": "Linear",
+      "sample_count": 1001
+    },
+    {
+      "sample_id": 3,
+      "directory": "extra1",
+      "module": "extra1",
+      "mode": "Quadratic",
+      "sample_count": 1001
+    },
+    {
+      "sample_id": 4,
+      "directory": "extra2",
+      "module": "extra2",
+      "mode": "Sine",
+      "sample_count": 2001
+    },
+    {
+      "sample_id": 5,
+      "directory": "extra3",
+      "module": "extra3",
+      "mode": "QuadraticSine",
+      "sample_count": 3001
+    }
+  ]
+}

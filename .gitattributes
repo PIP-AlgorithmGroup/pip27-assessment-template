@@ -1,0 +1,3 @@
+# 公开样例的哈希覆盖文本和图片，检出时须保持冻结内容。
+problems/T3_signal_identification/examples/** text eol=lf
+problems/T3_signal_identification/examples/**/*.png binary

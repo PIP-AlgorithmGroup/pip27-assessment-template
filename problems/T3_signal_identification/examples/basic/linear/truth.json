@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "parameters": [
+    7.486117965265475,
+    1.6404388267324088,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "active_parameter_names": [
+    "c",
+    "v"
+  ],
+  "grading": {
+    "status": "draft_uncalibrated",
+    "scale_method": "linear_ols_exact",
+    "sigma_multiplier": 4.0,
+    "parameter_stddev": [
+      0.0947499308533325,
+      0.016407068170710873,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "numerical_floor": [
+      1e-08,
+      1e-08,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "absolute_tolerance": [
+      0.37899973341333,
+      0.06562828268284349,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "phase_error": "circular_distance_radians",
+    "scaled_design_condition_number": 3.7288237838504785
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "dataset": "examples",
+  "sample_id": 2,
+  "module": "basic",
+  "mode": "Linear",
+  "noise_stddev": 1.5,
+  "noise_to_amplitude_ratio": null,
+  "signal_rms": 16.388816818423873,
+  "noise_distribution": "independent_zero_mean_gaussian_added_to_final_signal",
+  "timestamp_unit": "virtual_seconds",
+  "parameter_time_origin": "first_observation",
+  "time_origin": 901.648538061389,
+  "sample_hz": 100,
+  "duration_seconds": 10,
+  "sample_count": 1001,
+  "root_seed": 20271005,
+  "parameter_seed": 21271009,
+  "noise_seed": 21271010,
+  "random_generator": "numpy.PCG64",
+  "numpy_version": "1.21.5"
+}
