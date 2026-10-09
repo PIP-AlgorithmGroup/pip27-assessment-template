@@ -68,8 +68,10 @@ int main() {
                kLimits,
                [] {
                    auto* memory = new char[128ULL * 1024 * 1024];
-                   memory[0] = 1;
-                   const bool allocated = memory[0] == 1;
+                   // volatile 访问防止优化构建把整个分配及读写删除。
+                   volatile char* observed = memory;
+                   observed[0] = 1;
+                   const bool allocated = observed[0] == 1;
                    delete[] memory;
                    return allocated;
                }).verdict == Verdict::MemoryLimit,
