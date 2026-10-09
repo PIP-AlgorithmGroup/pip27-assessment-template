@@ -6,11 +6,11 @@
 
 题目不限定算法。可以使用滑动窗口回归、局部多项式、频域方法、卡尔曼滤波、其他状态估计方法，或自行组合多种方法。测评只检查消息协议、时间戳、实时性和整体数值误差。
 
-本题使用 ROS 2 Humble。正式测评读取测评仓库中冻结的数据；模板仓库只包含公开样例、预览图和可运行的节点起始代码。
+本题使用 ROS 2 Humble。正式测评读取冻结数据；模板仓库提供公开样例、消息接口和可编译运行的节点起始代码，算法及业务回调由考生完成。
 
 ## ROS 2 接口
 
-模板节点名为 `/signal_estimator`。测评机通过以下接口通信：
+考生节点名须为 `/signal_estimator`。测评机通过以下接口通信：
 
 | 方向 | Topic | 消息类型 |
 | --- | --- | --- |
@@ -34,6 +34,8 @@ float64[] values
 ```
 
 `header.stamp` 是测评协议中的虚拟时间戳。它来自观测数据本身，不能用系统墙钟替换。`header.frame_id` 不参与数值判定，可以原样传递或留空。
+
+每帧输入观测的 `values.size() == 1`，`values[0]` 为 `header.stamp` 时刻的含噪观测量。测评机只提供这些观测和模式参数，不提供原始信号、噪声标准差或未来观测。
 
 双方 QoS 为 `Reliable`、`Volatile`、`KeepLast(256)`。测评机先等待参数服务和 DDS 通信建立，再发送首帧；每个测试点使用新进程，历史状态不能跨测试点复用。
 
@@ -98,9 +100,9 @@ values[i]    == header.stamp + i * 5 ms 对应的预测值
 
 ### 连续轨迹
 
-每个测试点的隐藏原始信号是一条连续平滑曲线。曲线由多尺度随机平滑场生成：多个不同宽度的高斯基函数叠加后，再进行幅度和基线标定。它不使用固定的匀速、匀加速或正弦参数方程，局部变化速度和曲率会随时间改变，更接近真实观测目标的连续运动。
+原始信号是一条随机生成的连续平滑曲线，由不同宽度的高斯基函数叠加并标定幅度、基线得到，局部变化速度和曲率随时间改变。
 
-不同拓展组使用不同的最短局部变化尺度，避免 0.5 s 预测窗口跨过一个完全不可从历史观测推断的尖锐事件：
+各组局部变化的时间尺度如下：
 
 | 测试组 | 局部事件尺度范围 |
 | --- | --- |
@@ -109,7 +111,7 @@ values[i]    == header.stamp + i * 5 ms 对应的预测值
 | Extra2 | 0.40–0.70 s |
 | Extra3 | 0.55–0.90 s |
 
-公开数据中的 `truth.csv` 只用于开发、作图和离线检查；正式测评的真实轨迹只保存在测评仓库。
+公开数据中的 `truth.csv` 只用于离线开发和检查；正式测评时考生节点只能使用在线收到的观测。
 
 ### 噪声
 
@@ -120,28 +122,26 @@ y(t_i)=x(t_i)+\epsilon_i,\qquad
 \epsilon_i\sim\mathcal N(0,\sigma^2)。
 $$
 
-噪声独立、零均值，只叠加到最终完整信号上。每个测试点的噪声比例为：
+噪声独立、零均值，只叠加到最终完整信号上。定义有效变化幅度和实际噪声比例：
 
 $$
-\sigma=\rho A_{\mathrm{robust}},\qquad
-A_{\mathrm{robust}}=P_{95}(x)-P_5(x)。
+A_{\mathrm{robust}}=P_{95}(x)-P_5(x),\qquad
+\rho=\frac{\sigma}{A_{\mathrm{robust}}}。
 $$
 
-正式和公开数据均使用以下五个 `rho` 档位：
+`P95`、`P5` 分别为原始信号的第 95、5 百分位数。正式和公开数据均使用以下五个目标噪声比例档位：
 
 ```text
 0.02、0.05、0.10、0.15、0.20
 ```
 
-`rho`、`sigma` 和原始轨迹参数不通过 ROS 2 运行时接口提供给考生；它们只出现在公开样例的配置文件中，方便离线复现和检查。
-
-为避免出现噪声标准差接近或超过信号整体能量的测试点，数据生成器实际采用：
+记目标档位为 `rho_target`，最终使用的噪声标准差为：
 
 $$
-\sigma=\min\left(\rho A_{\mathrm{robust}},\;0.3\operatorname{RMS}(x)\right)。
+\sigma=\min\left(\rho_{\mathrm{target}} A_{\mathrm{robust}},\;0.3\operatorname{RMS}(x)\right)。
 $$
 
-目录名和 `config.json` 中的 `noise_ratio` 是目标 `rho` 档位；如果触发上限，配置还会记录 `effective_noise_ratio` 和未截断的 `requested_noise_stddev`。目标及实际 `rho` 均不超过 0.20，实际 `sigma/RMS(x)` 不超过 0.30。
+实际 `rho` 不超过 0.20，且 `sigma/RMS(x)` 不超过 0.30。公开样例的目录名和 `config.json` 中的 `noise_ratio` 表示目标档位，`effective_noise_ratio` 和 `noise_stddev` 分别记录实际 `rho`、实际 `sigma`；下方样例表使用实际值。这些噪声信息不通过 ROS 2 运行时接口提供给考生。
 
 ### 时间戳和抖动
 
@@ -158,25 +158,15 @@ $$
 | Extra2 | 2 | 50 Hz | 10 s | 501 | 41 点 | 21–30 |
 | Extra3 | 3 | 50 Hz | 10 s | 501 | 101 点 | 31–40 |
 
-正式数据目录位于测评仓库：
-
-```text
-testing/T4_realtime_estimation/cases/
-├── MANIFEST.json
-├── SHA256SUMS
-├── VERIFICATION.txt
-├── basic/rho_0p02/run_1/
-├── basic/rho_0p02/run_2/
-└── ...
-```
-
-每个测试点目录包含：
-
-- `config.json`：模式、采样配置、帧数、虚拟时间起点、噪声元数据和随机种子；
-- `observations.csv`：`timestamp,observation` 两列，含噪观测；
-- `truth.csv`：`timestamp,signal` 两列，供测评机插值计算真实值。
-
 ## 测评和计分
+
+### 测评流程
+
+1. 编译考生节点，并核验冻结测试数据的校验和。
+2. 为当前测试点启动新进程，设置 `assessment_mode`，等待 DDS 通信匹配；匹配完成后固定等待 250 ms，再开始投喂。
+3. 按观测虚拟时间间隔原速发布含噪数据，同时检查输出协议、完整性、实时性及资源使用。每个测试点显示进度条；非交互终端显示逐行进度。
+4. 将输出时间戳与保存的真实信号对齐；不在真值采样网格上的时刻用相邻真值线性插值。汇总整个测试点的 RMSE，并发送 SIGINT，检查节点正常退出。
+5. 只有消息协议、包完整性、实时性、整体数值误差和进程资源及退出状态全部达标，当前测试点才通过。输出逐点结果和最终拓展得分。
 
 ### 基础门槛
 
@@ -186,12 +176,12 @@ Basic 只判定通过或不通过，不计入拓展分数。10 个 Basic 测试�
 
 | 测试组 | 测试点 | 每点分值 | 小计 |
 | --- | ---: | ---: | ---: |
-| Extra1 | 10 | 1 | 10 |
-| Extra2 | 10 | 2 | 20 |
+| Extra1 | 10 | 2 | 20 |
+| Extra2 | 10 | 3 | 30 |
 | Extra3 | 10 | 4 | 40 |
-| **拓展合计** | **30** |  | **70** |
+| **拓展合计** | **30** |  | **90** |
 
-拓展测试点逐点计分；某点只要消息完整性、实时性或整体数值判定有一项失败，该点得分为 0，其他点继续测评。
+拓展测试点逐点计分；某点只要任一通过条件失败，该点得分为 0，其他点继续测评。三个拓展组互不构成前置条件。
 
 ### 数值误差
 
@@ -251,14 +241,12 @@ $$
 
 Basic 的整体 RMSE 使用所有当前值；拓展的整体 RMSE 使用所有完整预测数组中的全部点。缺少任意必需消息、时间戳不能匹配、数组长度错误、数值为 NaN/Inf 或超出时间限制时，当前测试点直接无效，不进入数值计分。
 
-数值时间权重、正式数据和数值通过阈值必须作为同一版本冻结；修改其中任一项都要重新标定数值阈值。仅修改实时性规则时保留数值校准，并重新验证实际 ROS 2 测评。
-
 ### 实时性
 
 - Basic 单帧最大等待时间为 20 ms，起点是测评机发布该观测消息的墙钟时刻；
 - 拓展目标发布频率为 200 Hz，目标周期为 5 ms；每个预测包须在对应网格时刻起 20 ms 内送达；
 - 单个实际发布周期不设通过阈值，周期最小值和最大值只作诊断；
-- 有效输出总帧率不得低于 **190 Hz（200 Hz 的 95%）**，同时报告有效包数占必需包数的比例；任意必需包缺失仍使整点无效；
+- 拓展有效输出总帧率不得低于 **190 Hz（200 Hz 的 95%）**，同时报告有效包数占必需包数的比例；任意必需包缺失仍使整点无效；
 - 测评机不主动制造输出抖动，所有输出周期波动来自真实运行环境；
 - 进程启动、DDS 建立、参数服务、数据投喂、输出等待和退出均计入资源统计。
 
@@ -268,7 +256,7 @@ Basic 的整体 RMSE 使用所有当前值；拓展的整体 RMSE 使用所有�
 
 考生节点可使用 **2 个独立物理核心、RSS 256 MiB、虚拟地址空间 2 GiB、累计 CPU 20 s、总墙钟 17 s**。累计 CPU 时间为全部线程之和。启动和通信建立最多 5 s；测试完成后发送 SIGINT，须在 1 s 内正常退出。ROS 2、DDS、线程、初始化、在线处理和退出均计入节点资源统计，报告的墙钟时间不是单次算法耗时。
 
-当前正式数据最长实际投喂跨度为 10.015946120 s，最多需要发布 2004 个预测包。按最低 190 Hz 核算 2003 个间隔，保守生命周期上界为 `5 s 启动 + max(10.015946120 s, 2003/190 s) + 0.020 s 末包等待 + 1 s 退出 = 16.562105263 s`，统一向上取整为 **17 s**。超过墙钟上限或退出宽限仍未结束时，测评机强制终止考生进程及其进程组。该兜底上限不放宽单包 20 ms 的送达期限。
+超过墙钟上限或退出宽限仍未结束时，测评机强制终止考生进程及其进程组。17 s 墙钟上限不放宽单包 20 ms 的送达期限。
 
 测评整体使用四个独立物理核心：观测投喂、数据校验各占一个，考生节点使用另外两个。考生的全部线程和子进程继承这两个核心的可用集合；ROS 2 执行器和内部线程结构由考生自行设计。测评报告给出实际 CPU 分配，考生不能扩大到投喂或校验核心。同一物理核心的两个超线程不作为两个独立核心，测评环境须提供至少四个可用物理核心。
 
@@ -283,62 +271,57 @@ Basic 的整体 RMSE 使用所有当前值；拓展的整体 RMSE 使用所有�
 
 回调和算法目前是空实现。考生可以修改、删除或重写 `src/` 下的全部代码，也可以拆分成多个源文件；不要求保留模板中的类、命名空间、回调名或算法结构。测评只依赖上面约定的消息接口、topic、参数和输出行为。
 
-## 公开数据和预览图
+## 公开数据
 
 模板仓库已包含 20 个公开点：四个测试组各 5 个，五个目标 `rho` 各一个。公开点与正式点使用相同的轨迹生成方法、输入时间抖动规则和采样配置，并使用独立的轨迹、时间戳和噪声随机流；公开点仅用于开发，不计入成绩。
 
 每个公开点目录包含：
 
-- `observations.csv`：含噪观测折线；
-- `truth.csv`：连续原始信号的 1000 Hz 参考采样；
-- `config.json`：模式、采样、目标 `rho`、实际 `sigma`、有效噪声比例和生成元数据；
-- `preview.png`：由上述 CSV 直接绘制的 450 DPI 预览图。
+- `observations.csv`：`timestamp,observation` 两列，记录含噪观测；
+- `truth.csv`：`timestamp,signal` 两列，记录原始信号的 1000 Hz 参考采样，覆盖末帧之后的完整预测窗口；
+- `config.json`：模式、采样配置、目标噪声档位、实际 `rho`、实际 `sigma` 和生成元数据。
 
-公开根目录的 [`MANIFEST.json`](examples/MANIFEST.json) 列出全部 20 点；[`SHA256SUMS`](examples/SHA256SUMS) 覆盖全部 CSV、JSON 和 PNG。预览图不会重新抽取噪声，因此图片和数据始终来自同一份固定文件。
-
-预览图标题及下方样例表只显示最终使用的实际 `rho = sigma / A_robust` 和实际 `sigma`。
-
-拓展预览图的绿色阴影仅示意三个不同发布时刻的滚动预测窗口，实际窗口每 5 ms 更新一次。末帧之后的蓝色虚线是额外保存的参考真值，供末段预测对齐评分。蓝线均为参考真值，图中没有考生算法的预测结果。
+公开根目录的 [`MANIFEST.json`](examples/MANIFEST.json) 列出全部 20 点；[`SHA256SUMS`](examples/SHA256SUMS) 用于校验公开文件。
 
 ### Basic
 
-| 实际 `rho` | 实际 `sigma` | 数据 | 预览 |
-| ---: | ---: | --- | --- |
-| 0.02 | 0.2277 | [examples/basic/rho_0p02](examples/basic/rho_0p02) | [preview.png](examples/basic/rho_0p02/preview.png) |
-| 0.05 | 0.4821 | [examples/basic/rho_0p05](examples/basic/rho_0p05) | [preview.png](examples/basic/rho_0p05/preview.png) |
-| 0.1 | 1.194 | [examples/basic/rho_0p10](examples/basic/rho_0p10) | [preview.png](examples/basic/rho_0p10/preview.png) |
-| 0.1445 | 1.361 | [examples/basic/rho_0p15](examples/basic/rho_0p15) | [preview.png](examples/basic/rho_0p15/preview.png) |
-| 0.2 | 1.333 | [examples/basic/rho_0p20](examples/basic/rho_0p20) | [preview.png](examples/basic/rho_0p20/preview.png) |
+| 实际 `rho` | 实际 `sigma` | 数据 |
+| ---: | ---: | --- |
+| 0.02 | 0.2277 | [examples/basic/rho_0p02](examples/basic/rho_0p02) |
+| 0.05 | 0.4821 | [examples/basic/rho_0p05](examples/basic/rho_0p05) |
+| 0.1 | 1.194 | [examples/basic/rho_0p10](examples/basic/rho_0p10) |
+| 0.1445 | 1.361 | [examples/basic/rho_0p15](examples/basic/rho_0p15) |
+| 0.2 | 1.333 | [examples/basic/rho_0p20](examples/basic/rho_0p20) |
 
 ### Extra1
 
-| 实际 `rho` | 实际 `sigma` | 数据 | 预览 |
-| ---: | ---: | --- | --- |
-| 0.02 | 0.2251 | [examples/extra1/rho_0p02](examples/extra1/rho_0p02) | [preview.png](examples/extra1/rho_0p02/preview.png) |
-| 0.05 | 0.517 | [examples/extra1/rho_0p05](examples/extra1/rho_0p05) | [preview.png](examples/extra1/rho_0p05/preview.png) |
-| 0.1 | 0.7805 | [examples/extra1/rho_0p10](examples/extra1/rho_0p10) | [preview.png](examples/extra1/rho_0p10/preview.png) |
-| 0.08722 | 0.7501 | [examples/extra1/rho_0p15](examples/extra1/rho_0p15) | [preview.png](examples/extra1/rho_0p15/preview.png) |
-| 0.1357 | 0.9867 | [examples/extra1/rho_0p20](examples/extra1/rho_0p20) | [preview.png](examples/extra1/rho_0p20/preview.png) |
+| 实际 `rho` | 实际 `sigma` | 数据 |
+| ---: | ---: | --- |
+| 0.02 | 0.2251 | [examples/extra1/rho_0p02](examples/extra1/rho_0p02) |
+| 0.05 | 0.517 | [examples/extra1/rho_0p05](examples/extra1/rho_0p05) |
+| 0.1 | 0.7805 | [examples/extra1/rho_0p10](examples/extra1/rho_0p10) |
+| 0.08722 | 0.7501 | [examples/extra1/rho_0p15](examples/extra1/rho_0p15) |
+| 0.1357 | 0.9867 | [examples/extra1/rho_0p20](examples/extra1/rho_0p20) |
 
 ### Extra2
 
-| 实际 `rho` | 实际 `sigma` | 数据 | 预览 |
-| ---: | ---: | --- | --- |
-| 0.02 | 0.1484 | [examples/extra2/rho_0p02](examples/extra2/rho_0p02) | [preview.png](examples/extra2/rho_0p02/preview.png) |
-| 0.05 | 0.3669 | [examples/extra2/rho_0p05](examples/extra2/rho_0p05) | [preview.png](examples/extra2/rho_0p05/preview.png) |
-| 0.1 | 1.114 | [examples/extra2/rho_0p10](examples/extra2/rho_0p10) | [preview.png](examples/extra2/rho_0p10/preview.png) |
-| 0.1194 | 1.347 | [examples/extra2/rho_0p15](examples/extra2/rho_0p15) | [preview.png](examples/extra2/rho_0p15/preview.png) |
-| 0.2 | 1.508 | [examples/extra2/rho_0p20](examples/extra2/rho_0p20) | [preview.png](examples/extra2/rho_0p20/preview.png) |
+| 实际 `rho` | 实际 `sigma` | 数据 |
+| ---: | ---: | --- |
+| 0.02 | 0.1484 | [examples/extra2/rho_0p02](examples/extra2/rho_0p02) |
+| 0.05 | 0.3669 | [examples/extra2/rho_0p05](examples/extra2/rho_0p05) |
+| 0.1 | 1.114 | [examples/extra2/rho_0p10](examples/extra2/rho_0p10) |
+| 0.1194 | 1.347 | [examples/extra2/rho_0p15](examples/extra2/rho_0p15) |
+| 0.2 | 1.508 | [examples/extra2/rho_0p20](examples/extra2/rho_0p20) |
 
 ### Extra3
 
-| 实际 `rho` | 实际 `sigma` | 数据 | 预览 |
-| ---: | ---: | --- | --- |
-| 0.02 | 0.1468 | [examples/extra3/rho_0p02](examples/extra3/rho_0p02) | [preview.png](examples/extra3/rho_0p02/preview.png) |
-| 0.05 | 0.4643 | [examples/extra3/rho_0p05](examples/extra3/rho_0p05) | [preview.png](examples/extra3/rho_0p05/preview.png) |
-| 0.09194 | 0.8171 | [examples/extra3/rho_0p10](examples/extra3/rho_0p10) | [preview.png](examples/extra3/rho_0p10/preview.png) |
-| 0.1053 | 0.9739 | [examples/extra3/rho_0p15](examples/extra3/rho_0p15) | [preview.png](examples/extra3/rho_0p15/preview.png) |
-| 0.09877 | 0.6943 | [examples/extra3/rho_0p20](examples/extra3/rho_0p20) | [preview.png](examples/extra3/rho_0p20/preview.png) |
+| 实际 `rho` | 实际 `sigma` | 数据 |
+| ---: | ---: | --- |
+| 0.02 | 0.1468 | [examples/extra3/rho_0p02](examples/extra3/rho_0p02) |
+| 0.05 | 0.4643 | [examples/extra3/rho_0p05](examples/extra3/rho_0p05) |
+| 0.09194 | 0.8171 | [examples/extra3/rho_0p10](examples/extra3/rho_0p10) |
+| 0.1053 | 0.9739 | [examples/extra3/rho_0p15](examples/extra3/rho_0p15) |
+| 0.09877 | 0.6943 | [examples/extra3/rho_0p20](examples/extra3/rho_0p20) |
 
 ## 本地编译和校验
 
@@ -359,7 +342,3 @@ cmake --build /tmp/pip27-t4-build --parallel
 ```
 
 正式测评由测评仓库递归编译本题 `src/` 中的全部 `.cpp`，其中必须恰有一个节点 `main()`。本题不要求保留不可修改的算法头文件；节点结构由考生自行设计。正式构建使用官方 `SignalPacket.msg`，不会执行考生的 CMake 或重新生成数据。自行拆分接口包时仍须保留相同的包名、消息名和字段定义，保证 ROS 2 类型一致。
-
-维护者使用 `pip27-testing-env/scripts/generate_t4_cases.py` 生成数据，使用
-`scripts/plot_t4_examples.py` 从已经保存的 CSV 导出预览图。重新生成时必须同时更新
-`MANIFEST.json`、所有数据文件、预览图和 `SHA256SUMS`；正式测评目录不能用公开样例覆盖。
