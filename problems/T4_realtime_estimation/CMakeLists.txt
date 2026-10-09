@@ -18,7 +18,11 @@ rosidl_generate_interfaces(${PROJECT_NAME}
     DEPENDENCIES std_msgs
 )
 
-add_executable(estimator_node src/estimator_node.cpp)
+# 本地与正式测评均收集 src/ 下的全部实现文件，支持拆分节点源码。
+file(GLOB_RECURSE ESTIMATOR_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
+list(SORT ESTIMATOR_SOURCES)
+add_executable(estimator_node ${ESTIMATOR_SOURCES})
 target_compile_options(estimator_node PRIVATE -Wall -Wextra -Wpedantic)
 # 直接运行构建目录中的节点时，ROS 类型支持库的 dlopen 也需要构建 RPATH。
 target_link_options(estimator_node PRIVATE "-Wl,--disable-new-dtags")
